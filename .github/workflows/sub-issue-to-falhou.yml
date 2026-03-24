@@ -1,32 +1,55 @@
 name: Mover issue para Falhou ao criar sub-issue
 
 on:
-  sub_issues:
-    types: [child_issue_added]
+  issues:
+    types: [opened]
 
 permissions:
-  issues: write
+  issues: read
 
 jobs:
   move-to-falhou:
     runs-on: ubuntu-latest
     steps:
-      - name: Buscar item do projeto e atualizar status para Falhou
+      - name: Verificar se issue tem parent e mover para Falhou
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PROJECT_ID: "PVT_kwHOEBTB_s4BSpi8"
           STATUS_FIELD_ID: "PVTSSF_lAHOEBTB_s4BSpi8zhAHwdo"
           FALHOU_OPTION_ID: "22c05773"
         run: |
-          PARENT_ISSUE_NUMBER=${{ github.event.issue.number }}
+          ISSUE_NUMBER=${{ github.event.issue.number }}
           OWNER=${{ github.repository_owner }}
           REPO=${{ github.event.repository.name }}
 
-          # Busca o item do projeto correspondente ao issue pai
-          ITEM_ID=$(gh api graphql -f query='
-            query($owner: String!, $repo: String!, $issue: Int!) {
+          # Verifica se a issue recém criada tem um parent issue
+          PARENT_NUMBER=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
               repository(owner: $owner, name: $repo) {
-                issue(number: $issue) {
+                issue(number: $number) {
+                  parent {
+                    number
+                  }
+                }
+              }
+            }
+          ' -f owner="$OWNER" \
+            -f repo="$REPO" \
+            -F number=$ISSUE_NUMBER \
+            --jq '.data.repository.issue.parent.number // empty')
+
+          if [ -z "$PARENT_NUMBER" ]; then
+            echo "Issue #$ISSUE_NUMBER não tem parent. Nenhuma ação realizada."
+            exit 0
+          fi
+
+          echo "Issue #$ISSUE_NUMBER é sub-issue de #$PARENT_NUMBER. Buscando no projeto..."
+
+          # Busca o item do projeto correspondente ao parent issue
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $number) {
                   projectItems(first: 10) {
                     nodes {
                       id
@@ -38,15 +61,15 @@ jobs:
             }
           ' -f owner="$OWNER" \
             -f repo="$REPO" \
-            -F issue=$PARENT_ISSUE_NUMBER \
+            -F number=$PARENT_NUMBER \
             --jq ".data.repository.issue.projectItems.nodes[] | select(.project.id == \"$PROJECT_ID\") | .id")
 
           if [ -z "$ITEM_ID" ]; then
-            echo "Issue #$PARENT_ISSUE_NUMBER não encontrada no projeto. Nenhuma ação realizada."
+            echo "Issue #$PARENT_NUMBER não está no projeto. Nenhuma ação realizada."
             exit 0
           fi
 
-          # Atualiza o status para Falhou
+          # Atualiza o status do parent para Falhou
           gh api graphql -f query="
             mutation {
               updateProjectV2ItemFieldValue(input: {
@@ -60,4 +83,4 @@ jobs:
             }
           "
 
-          echo "Issue #$PARENT_ISSUE_NUMBER movida para Falhou no projeto."
+          echo "Issue #$PARENT_NUMBER movida para Falhou no projeto."
