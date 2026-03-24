@@ -6,30 +6,6 @@ labels: ''
 assignees: ''
 ---
 
-**Feat:** 
-**Nível:** <!-- E2E | Integração | Unitário -->
-**Categoria:** <!-- Happy Path | Edge Case | Error Case | Estado de UI | Permissão -->
-
----
-
-### Passos do Cenário
-
-**Dado que** 
-**E** 
-**Quando** 
-**Então** 
-**E** 
-
----
-
-### Checklist de Execução
-
-- [ ] Cenário executado
-- [ ] Resultado conforme esperado
-- [ ] Evidência anexada (se falhou)
-
----
-
 ### Evidências (preencher ao testar)
 
 **Resultado obtido:**
