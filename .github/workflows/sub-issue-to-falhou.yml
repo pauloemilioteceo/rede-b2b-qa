@@ -1,0 +1,63 @@
+name: Mover issue para Falhou ao criar sub-issue
+
+on:
+  sub_issues:
+    types: [child_issue_added]
+
+permissions:
+  issues: write
+
+jobs:
+  move-to-falhou:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Buscar item do projeto e atualizar status para Falhou
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT_ID: "PVT_kwHOEBTB_s4BSpi8"
+          STATUS_FIELD_ID: "PVTSSF_lAHOEBTB_s4BSpi8zhAHwdo"
+          FALHOU_OPTION_ID: "22c05773"
+        run: |
+          PARENT_ISSUE_NUMBER=${{ github.event.issue.number }}
+          OWNER=${{ github.repository_owner }}
+          REPO=${{ github.event.repository.name }}
+
+          # Busca o item do projeto correspondente ao issue pai
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issue: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issue) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner="$OWNER" \
+            -f repo="$REPO" \
+            -F issue=$PARENT_ISSUE_NUMBER \
+            --jq ".data.repository.issue.projectItems.nodes[] | select(.project.id == \"$PROJECT_ID\") | .id")
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue #$PARENT_ISSUE_NUMBER não encontrada no projeto. Nenhuma ação realizada."
+            exit 0
+          fi
+
+          # Atualiza o status para Falhou
+          gh api graphql -f query="
+            mutation {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: \"$PROJECT_ID\"
+                itemId: \"$ITEM_ID\"
+                fieldId: \"$STATUS_FIELD_ID\"
+                value: { singleSelectOptionId: \"$FALHOU_OPTION_ID\" }
+              }) {
+                projectV2Item { id }
+              }
+            }
+          "
+
+          echo "Issue #$PARENT_ISSUE_NUMBER movida para Falhou no projeto."
