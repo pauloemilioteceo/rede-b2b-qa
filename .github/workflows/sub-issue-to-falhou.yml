@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Verificar se issue tem parent e mover para Falhou
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
           PROJECT_ID: "PVT_kwHOEBTB_s4BSpi8"
           STATUS_FIELD_ID: "PVTSSF_lAHOEBTB_s4BSpi8zhAHwdo"
           FALHOU_OPTION_ID: "22c05773"
