@@ -1,0 +1,75 @@
+name: Mover issue para Passou ao marcar resultado conforme esperado
+
+on:
+  issues:
+    types: [edited]
+
+permissions:
+  issues: read
+
+jobs:
+  move-to-passou:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar checkbox e mover para Passou
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_ID: "PVT_kwHOEBTB_s4BSpi8"
+          STATUS_FIELD_ID: "PVTSSF_lAHOEBTB_s4BSpi8zhAHwdo"
+          PASSOU_OPTION_ID: "98236657"
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          OWNER=${{ github.repository_owner }}
+          REPO=${{ github.event.repository.name }}
+          BODY=$(cat << 'BODY_EOF'
+          ${{ github.event.issue.body }}
+          BODY_EOF
+          )
+
+          # Verifica se o checkbox "Resultado conforme esperado" está marcado
+          if ! echo "$BODY" | grep -q '\- \[x\] Resultado conforme esperado'; then
+            echo "Checkbox não marcado. Nenhuma ação realizada."
+            exit 0
+          fi
+
+          echo "Checkbox marcado na issue #$ISSUE_NUMBER. Buscando no projeto..."
+
+          # Busca o item do projeto correspondente à issue
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $number: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $number) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }
+          ' -f owner="$OWNER" \
+            -f repo="$REPO" \
+            -F number=$ISSUE_NUMBER \
+            --jq ".data.repository.issue.projectItems.nodes[] | select(.project.id == \"$PROJECT_ID\") | .id")
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "Issue #$ISSUE_NUMBER não está no projeto. Nenhuma ação realizada."
+            exit 0
+          fi
+
+          # Atualiza o status para Passou
+          gh api graphql -f query="
+            mutation {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: \"$PROJECT_ID\"
+                itemId: \"$ITEM_ID\"
+                fieldId: \"$STATUS_FIELD_ID\"
+                value: { singleSelectOptionId: \"$PASSOU_OPTION_ID\" }
+              }) {
+                projectV2Item { id }
+              }
+            }
+          "
+
+          echo "Issue #$ISSUE_NUMBER movida para Passou no projeto."
